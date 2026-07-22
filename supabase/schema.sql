@@ -7,11 +7,15 @@ create table if not exists public.rooms (
   id uuid primary key default gen_random_uuid(),
   code text unique not null,
   admin_pin text not null,
-  jackpot integer not null default 100,
+  jackpot integer not null default 0,
+  max_jackpot integer not null default 100,
   current_question_index integer not null default 0,
   status text not null default 'lobby' check (status in ('lobby', 'running', 'revealing', 'finished')),
   created_at timestamptz default now()
 );
+
+alter table public.rooms add column if not exists max_jackpot integer not null default 100;
+alter table public.rooms alter column jackpot set default 0;
 
 create table if not exists public.players (
   id uuid primary key default gen_random_uuid(),
@@ -44,15 +48,45 @@ create table if not exists public.answers (
   unique (player_id, question_id)
 );
 
-alter publication supabase_realtime add table public.rooms;
-alter publication supabase_realtime add table public.players;
-alter publication supabase_realtime add table public.questions;
-alter publication supabase_realtime add table public.answers;
+do $$
+begin
+  alter publication supabase_realtime add table public.rooms;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.players;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.questions;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.answers;
+exception when duplicate_object then null;
+end $$;
 
 alter table public.rooms enable row level security;
 alter table public.players enable row level security;
 alter table public.questions enable row level security;
 alter table public.answers enable row level security;
+
+drop policy if exists "Public read rooms" on public.rooms;
+drop policy if exists "Public create rooms" on public.rooms;
+drop policy if exists "Public update rooms MVP" on public.rooms;
+drop policy if exists "Public read players" on public.players;
+drop policy if exists "Public create players" on public.players;
+drop policy if exists "Public update players MVP" on public.players;
+drop policy if exists "Public read questions" on public.questions;
+drop policy if exists "Public create questions MVP" on public.questions;
+drop policy if exists "Public read answers" on public.answers;
+drop policy if exists "Public create answers" on public.answers;
 
 create policy "Public read rooms" on public.rooms for select using (true);
 create policy "Public create rooms" on public.rooms for insert with check (true);

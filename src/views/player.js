@@ -75,29 +75,41 @@ function drawPlayerGame() {
   target.innerHTML = `
     <section class="panel status-panel">
       <span>Raum ${room.code}</span>
-      <strong>${player.name}</strong>
+      <strong>${escapeHtml(player.name)}</strong>
       <span class="badge ${player.status === 'active' ? 'ok' : 'out'}">${player.status === 'active' ? 'aktiv' : 'ausgeschieden'}</span>
     </section>
-    ${question ? questionTemplate(question, answered, player.status === 'active' && room.status === 'running') : '<section class="panel"><h2>Warten auf die erste Frage.</h2></section>'}
+    ${question ? questionTemplate(question, answered, player.status === 'active' && room.status === 'running', room.status === 'revealing') : '<section class="panel"><h2>Warten auf die erste Frage.</h2></section>'}
   `;
 
   const form = document.querySelector('#answer-form');
   if (form) form.addEventListener('submit', submitAnswer);
 }
 
-function questionTemplate(question, answered, canAnswer) {
+
+function drawPlayerFinished(target, player) {
+  const isWinner = player.status === 'active';
+  target.innerHTML = `
+    <section class="panel final-summary ${isWinner ? 'won' : 'lost'}">
+      <p class="eyebrow">Spiel beendet</p>
+      <h1>${isWinner ? 'Du hast gewonnen!' : 'Du bist ausgeschieden.'}</h1>
+      <p>${isWinner ? 'Du hast alle Fragen geschafft.' : 'Diesmal gewinnt niemand den Jackpot.'}</p>
+    </section>
+  `;
+}
+function questionTemplate(question, answered, canAnswer, isRevealing) {
   const options = question.options ?? [];
   const inputs = question.type === 'mc'
-    ? options.map((option) => `<button class="option" name="answer" value="${escapeHtml(option)}" ${!canAnswer || answered ? 'disabled' : ''}>${escapeHtml(option)}</button>`).join('')
+    ? options.map((option) => `<button class="option ${isRevealing && option === question.correct_answer ? 'is-correct' : ''}" name="answer" value="${escapeHtml(option)}" ${!canAnswer || answered ? 'disabled' : ''}>${escapeHtml(option)}</button>`).join('')
     : `<input name="answer" placeholder="Antwort" ${!canAnswer || answered ? 'disabled' : ''} required><button class="button primary" ${!canAnswer || answered ? 'disabled' : ''}>Senden</button>`;
 
   return `
     <section class="panel question-card">
-      <p class="eyebrow">${question.difficulty}</p>
+      <p class="eyebrow">${escapeHtml(question.difficulty)}</p>
       <h1>${escapeHtml(question.question)}</h1>
       <form id="answer-form" class="answers">${inputs}</form>
       ${answered ? '<p class="notice success">Antwort gespeichert.</p>' : ''}
       ${!canAnswer && !answered ? '<p class="muted">Gerade ist keine Antwortabgabe aktiv.</p>' : ''}
+      ${isRevealing ? `<div class="correct-answer compact"><span>Richtige Antwort</span><strong>${escapeHtml(question.correct_answer)}</strong></div>` : ''}
     </section>
   `;
 }
@@ -123,3 +135,4 @@ async function submitAnswer(event) {
 function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\'': '&#39;', '"': '&quot;' }[char]));
 }
+

@@ -14,9 +14,7 @@ export function renderDisplay(app) {
         </form>
       </header>
       ${isSupabaseConfigured ? '' : '<div class="notice">Supabase ist noch nicht konfiguriert.</div>'}
-      <section id="display-game" class="stage empty">
-        <h1>Anzeige bereit</h1>
-      </section>
+      <section id="display-game" class="stage empty"><h1>Anzeige bereit</h1></section>
     </main>
   `;
 
@@ -62,32 +60,53 @@ function subscribeDisplay(roomId) {
 function drawDisplay() {
   const target = document.querySelector('#display-game');
   const room = displayState.room;
-  const question = displayState.questions.find((item) => item.question_order === room.current_question_index);
   const active = displayState.players.filter((player) => player.status === 'active');
-  const answeredCount = question ? displayState.answers.filter((answer) => answer.question_id === question.id).length : 0;
+  const question = displayState.questions.find((item) => item.question_order === room.current_question_index);
 
   target.className = 'stage';
-  target.innerHTML = `
+  target.innerHTML = `${scoreStrip(room, active.length)}${mainStage(room, question, active)}${playersBand(question, active.length)}`;
+}
+
+function scoreStrip(room, activeCount) {
+  return `
     <section class="score-strip">
-      <div><span>Raum</span><strong>${room.code}</strong></div>
-      <div><span>Jackpot</span><strong>${room.jackpot}</strong></div>
-      <div><span>Aktiv</span><strong>${active.length}/${displayState.players.length}</strong></div>
+      <div><span>Raum</span><strong>${escapeHtml(room.code)}</strong></div>
+      <div><span>Jackpot</span><strong>${room.jackpot}/${room.max_jackpot ?? room.jackpot}</strong></div>
+      <div><span>Aktiv</span><strong>${activeCount}/${displayState.players.length}</strong></div>
       <div><span>Status</span><strong>${labelStatus(room.status)}</strong></div>
     </section>
-    <section class="show-question">
-      ${question ? `<p>${question.difficulty}</p><h1>${escapeHtml(question.question)}</h1>${options(question)}` : '<h1>Warten auf Fragen</h1>'}
-    </section>
+  `;
+}
+
+function mainStage(room, question, active) {
+  if (room.status === 'finished' && !active.length) {
+    return `<section class="final-stage all-out"><p>Alle ausgeschieden</p><h1>Niemand gewinnt den Jackpot.</h1><strong>${room.max_jackpot ?? room.jackpot}</strong></section>`;
+  }
+  if (room.status === 'finished') {
+    return `<section class="final-stage winners"><p>Gewonnen</p><h1>${active.map((player) => escapeHtml(player.name)).join(', ')}</h1><strong>${room.jackpot} Punkte</strong></section>`;
+  }
+  return `<section class="show-question">${question ? `<p>${escapeHtml(question.difficulty)}</p><h1>${escapeHtml(question.question)}</h1>${options(question, room.status === 'revealing')}${revealAnswer(room, question)}` : '<h1>Warten auf Fragen</h1>'}</section>`;
+}
+
+function playersBand(question, activeCount) {
+  const answeredCount = question ? displayState.answers.filter((answer) => answer.question_id === question.id).length : 0;
+  return `
     <section class="players-band">
-      <div class="meter"><span style="width:${displayState.players.length ? (active.length / displayState.players.length) * 100 : 0}%"></span></div>
+      <div class="meter"><span style="width:${displayState.players.length ? (activeCount / displayState.players.length) * 100 : 0}%"></span></div>
       <p>${answeredCount} Antworten eingegangen</p>
       <div class="player-cloud">${displayState.players.map(playerPill).join('')}</div>
     </section>
   `;
 }
 
-function options(question) {
+function revealAnswer(room, question) {
+  if (room.status !== 'revealing') return '';
+  return `<div class="correct-answer"><span>Richtige Antwort</span><strong>${escapeHtml(question.correct_answer)}</strong></div>`;
+}
+
+function options(question, isRevealing) {
   if (question.type !== 'mc' || !question.options?.length) return '';
-  return `<div class="display-options">${question.options.map((option) => `<span>${escapeHtml(option)}</span>`).join('')}</div>`;
+  return `<div class="display-options">${question.options.map((option) => `<span class="${isRevealing && option === question.correct_answer ? 'is-correct' : ''}">${escapeHtml(option)}</span>`).join('')}</div>`;
 }
 
 function playerPill(player) {
